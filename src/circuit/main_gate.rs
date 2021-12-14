@@ -126,12 +126,7 @@ pub trait MainGateInstructions<F: FieldExt> {
         offset: &mut usize,
     ) -> Result<AssignedCondition<F>, Error>;
 
-    fn cond_not(
-        &self,
-        region: &mut Region<'_, F>,
-        c: &AssignedCondition<F>,
-        offset: &mut usize,
-    ) -> Result<AssignedCondition<F>, Error>;
+    fn cond_not(&self, region: &mut Region<'_, F>, c: &AssignedCondition<F>, offset: &mut usize) -> Result<AssignedCondition<F>, Error>;
 
     fn cond_select(
         &self,
@@ -646,12 +641,7 @@ impl<F: FieldExt> MainGateInstructions<F> for MainGate<F> {
         Ok(AssignedCondition::new(cell, c))
     }
 
-    fn cond_not(
-        &self,
-        region: &mut Region<'_, F>,
-        c: &AssignedCondition<F>,
-        offset: &mut usize,
-    ) -> Result<AssignedCondition<F>, Error> {
+    fn cond_not(&self, region: &mut Region<'_, F>, c: &AssignedCondition<F>, offset: &mut usize) -> Result<AssignedCondition<F>, Error> {
         let one = F::one();
 
         let not_c = match c.value() {
@@ -1745,6 +1735,79 @@ mod tests {
             Err(e) => panic!("{:#?}", e),
         };
 
+        assert_eq!(prover.verify(), Ok(()));
+    }
+
+    #[derive(Default, Clone, Debug)]
+    struct TestCircuitXXX<F: FieldExt> {
+        _marker: PhantomData<F>,
+    }
+
+    impl<F: FieldExt> Circuit<F> for TestCircuitXXX<F> {
+        type Config = TestCircuitConfig;
+        type FloorPlanner = SimpleFloorPlanner;
+
+        fn without_witnesses(&self) -> Self {
+            Self::default()
+        }
+
+        fn configure(meta: &mut ConstraintSystem<F>) -> Self::Config {
+            let main_gate_config = MainGate::<F>::configure(meta);
+            TestCircuitConfig { main_gate_config }
+        }
+
+        fn synthesize(&self, config: Self::Config, mut layouter: impl Layouter<F>) -> Result<(), Error> {
+            println!("will synthesize");
+            layouter.assign_region(
+                || "assign region 0",
+                |mut region| {
+                    println!("in layouter: should be run twice");
+
+                    // expession:
+                    // vec![a.clone() * sa + b.clone() * sb + a * b * s_mul + c * sc + sd * d + sd_next * d_next + s_constant]
+
+                    // test:
+                    //  a * 1 - s_constant = 0
+
+                    let a = F::rand();
+                    let constant = a.clone();
+
+                    println!("a:\n{:?}", a);
+                    println!("constant:\n{:?}", constant);
+
+                    let _ = region.assign_advice(|| "a", config.main_gate_config.a, 0, || Ok(a))?;
+                    let _ = region.assign_advice(|| "b", config.main_gate_config.b, 0, || Ok(F::zero()))?;
+                    let _ = region.assign_advice(|| "c", config.main_gate_config.c, 0, || Ok(F::zero()))?;
+                    let _ = region.assign_advice(|| "d", config.main_gate_config.d, 0, || Ok(F::zero()))?;
+
+                    region.assign_fixed(|| "sa", config.main_gate_config.sa, 0, || Ok(F::one()))?;
+                    region.assign_fixed(|| "sb", config.main_gate_config.sb, 0, || Ok(F::zero()))?;
+                    region.assign_fixed(|| "sc", config.main_gate_config.sc, 0, || Ok(F::zero()))?;
+                    region.assign_fixed(|| "sd", config.main_gate_config.sd, 0, || Ok(F::zero()))?;
+                    region.assign_fixed(|| "s_mul", config.main_gate_config.s_mul, 0, || Ok(F::zero()))?;
+                    region.assign_fixed(|| "sd_next", config.main_gate_config.sd_next, 0, || Ok(F::zero()))?;
+                    region.assign_fixed(|| "s_constant", config.main_gate_config.s_constant, 0, || Ok(-constant))?;
+
+                    Ok(())
+                },
+            )?;
+
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn test_yt() {
+        const K: u32 = 4;
+
+        let circuit = TestCircuitXXX::<Fp> { _marker: PhantomData };
+        println!("will run");
+        let prover = match MockProver::run(K, &circuit, vec![]) {
+            Ok(prover) => prover,
+            Err(e) => panic!("{:#?}", e),
+        };
+
+        println!("will verify");
         assert_eq!(prover.verify(), Ok(()));
     }
 }
