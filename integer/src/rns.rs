@@ -314,7 +314,7 @@ impl<W: WrongExt, N: FieldExt> Rns<W, N> {
             let u1 = u1 + (u0.clone() >> (2 * bit_len_limb));
 
             let v0 = u0 >> (2 * bit_len_limb);
-            let v1 = u1 >> (2 * bit_len_limb);
+            let v1 = (u1 + v0.clone()) >> (2 * bit_len_limb);
 
             (v0, v1)
         };
@@ -342,11 +342,13 @@ impl<W: WrongExt, N: FieldExt> Rns<W, N> {
             let u1 = u1 + (u0.clone() >> (2 * bit_len_limb));
 
             let v0 = u0 >> (2 * bit_len_limb);
-            let v1 = u1 >> (2 * bit_len_limb);
+            let v1 = (u1 + v0.clone()) >> (2 * bit_len_limb);
 
             (v0, v1)
         };
-        let red_v0_overflow = red_v0_max.bits() as usize - bit_len_limb;
+        // v0 does not overflow
+        // let red_v0_overflow = red_v0_max.bits() as usize - bit_len_limb;
+        let red_v0_overflow = 0;
         let red_v1_overflow = red_v1_max.bits() as usize - bit_len_limb;
 
         let bit_len_lookup = bit_len_limb / NUMBER_OF_LOOKUP_LIMBS;
