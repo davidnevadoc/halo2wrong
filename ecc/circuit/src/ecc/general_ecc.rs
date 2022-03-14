@@ -15,28 +15,40 @@ use std::rc::Rc;
 mod add;
 mod mul;
 
+/// Chip of Elliptic Curve Operations
 #[derive(Clone)]
 pub struct GeneralEccChip<Emulated: CurveAffine, N: FieldExt> {
+    /// Chip configuration
     config: EccConfig,
-    rns_base_field: Rc<Rns<Emulated::Base, N>>,
+    /// Rns for EC base field
+    rns_base_field: Rc<Rns<Emulated::Base, N>>, // DNC: Why reference-counting?
+    /// Rns for EC scalar field
     rns_scalar_field: Rc<Rns<Emulated::Scalar, N>>,
+    // TODO: Not sure about this
     aux_generator: Option<(AssignedPoint<Emulated::Base, N>, Option<Emulated>)>,
+    // TODO: Not sure about this
     aux_registry: BTreeMap<(usize, usize), AssignedPoint<Emulated::Base, N>>,
 }
 
 impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
+    /// Residue numeral system
     pub fn rns(bit_len_limb: usize) -> (Rns<Emulated::Base, N>, Rns<Emulated::Scalar, N>) {
         (Rns::construct(bit_len_limb), Rns::construct(bit_len_limb))
     }
 
+    /// Residue numeral system for the base field of the curve
+    /// Return new refence for chips' rns base field
     pub fn rns_base(&self) -> Rc<Rns<Emulated::Base, N>> {
         Rc::clone(&self.rns_base_field)
     }
 
+    /// Residue numeral system for the scalar field of the curve
+    /// Return new refence for chips' rns scalar field
     pub fn rns_scalar(&self) -> Rc<Rns<Emulated::Scalar, N>> {
         Rc::clone(&self.rns_scalar_field)
     }
 
+    /// Assign Rns base for chip
     pub fn new_unassigned_base(
         &self,
         e: Option<Emulated::Base>,
@@ -44,6 +56,7 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         e.map(|e| Integer::from_fe(e, self.rns_base())).into()
     }
 
+    /// Assign Rns Scalar for chip
     pub fn new_unassigned_scalar(
         &self,
         e: Option<Emulated::Scalar>,
@@ -51,6 +64,7 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         e.map(|e| Integer::from_fe(e, self.rns_scalar())).into()
     }
 
+    /// Return `GeneralEccChip` from `EccConfig`
     pub fn new(config: EccConfig, bit_len_limb: usize) -> Self {
         let (rns_base_field, rns_scalar_field) = Self::rns(bit_len_limb);
         Self {
@@ -62,10 +76,12 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         }
     }
 
+    /// Return `Instance` columns of the chip config
     fn instance_column(&self) -> Column<Instance> {
         self.config.main_gate_config.instance
     }
 
+    /// Return `IntegerChip` for the base field of the EC
     pub fn base_field_chip(&self) -> IntegerChip<Emulated::Base, N> {
         IntegerChip::new(
             self.config.integer_chip_config(),
@@ -73,6 +89,7 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         )
     }
 
+    /// Return `IntegerChip` for the scalar field of the EC
     pub fn scalar_field_chip(&self) -> IntegerChip<Emulated::Scalar, N> {
         IntegerChip::new(
             self.config.integer_chip_config(),
@@ -80,10 +97,12 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         )
     }
 
+    /// Return `Maingate` of the `GeneralEccChip`
     pub fn main_gate(&self) -> MainGate<N> {
         MainGate::<N>::new(self.config.main_gate_config.clone())
     }
 
+    /// Returns a `Point` (Rns representation) from a point in the emulated EC
     pub fn to_rns_point(&self, point: Emulated) -> Point<Emulated::Base, N> {
         let coords = point.coordinates();
         // disallow point of infinity
@@ -95,28 +114,31 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         Point { x, y }
     }
 
+    /// Returns emulated EC constant $b$
     fn parameter_b(&self) -> Integer<Emulated::Base, N> {
         Integer::from_fe(Emulated::b(), Rc::clone(&self.rns_base_field))
     }
 
+    /// TODO What is mul aux?
     fn get_mul_aux(
         &self,
         window_size: usize,
-        number_of_pairs: usize,
+        number_of_pairs: usize, // TODO: what?
     ) -> Result<MulAux<Emulated::Base, N>, Error> {
+        // Gets chips' aux generator
         let to_add = match self.aux_generator.clone() {
             Some((assigned, _)) => Ok(assigned),
             None => Err(Error::Synthesis),
         }?;
+        // TODO Absolute mistery for now
         let to_sub = match self.aux_registry.get(&(window_size, number_of_pairs)) {
             Some(aux) => Ok(aux.clone()),
             None => Err(Error::Synthesis),
         }?;
         Ok(MulAux::new(to_add, to_sub))
     }
-}
 
-impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
+    /// Expose `AssignedPoint` as Public Input
     pub fn expose_public(
         &self,
         mut layouter: impl Layouter<N>,
@@ -136,6 +158,8 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         Ok(())
     }
 
+    /// Takes `Point` and assign its coordiantes as constant
+    /// Returns as `AssignedPoint`
     pub fn assign_constant(
         &self,
         ctx: &mut RegionCtx<'_, '_, N>,
@@ -219,6 +243,7 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         Ok(())
     }
 
+    /// Assert two `AssignedPoint`s are equal
     pub fn assert_equal(
         &self,
         ctx: &mut RegionCtx<'_, '_, N>,
@@ -230,6 +255,7 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         integer_chip.assert_equal(ctx, &p0.y, &p1.y)
     }
 
+    /// Selects between 2 `AssignedPoint` determined by an `AssignedCondition`
     pub fn select(
         &self,
         ctx: &mut RegionCtx<'_, '_, N>,
@@ -243,6 +269,8 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         Ok(AssignedPoint::new(x, y))
     }
 
+    /// Selects between an `AssignedPoint` and a point on the EC `Emulated`
+    /// determined by an `AssignedCondition`
     pub fn select_or_assign(
         &self,
         ctx: &mut RegionCtx<'_, '_, N>,
@@ -257,6 +285,7 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         Ok(AssignedPoint::new(x, y))
     }
 
+    /// Normalizes an `AssignedPoint` by reducing each of its coordinates
     pub fn normalize(
         &self,
         ctx: &mut RegionCtx<'_, '_, N>,
@@ -268,6 +297,7 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         Ok(AssignedPoint::new(x, y))
     }
 
+    /// Adds 2 distinct `AssignedPoints`
     pub fn add(
         &self,
         ctx: &mut RegionCtx<'_, '_, N>,
@@ -282,6 +312,7 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         self._add_incomplete_unsafe(ctx, p0, p1)
     }
 
+    /// Doubles an `AssignedPoint`
     pub fn double(
         &self,
         ctx: &mut RegionCtx<'_, '_, N>,
