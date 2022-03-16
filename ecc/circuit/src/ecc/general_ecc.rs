@@ -26,7 +26,7 @@ pub struct GeneralEccChip<Emulated: CurveAffine, N: FieldExt> {
     rns_scalar_field: Rc<Rns<Emulated::Scalar, N>>,
     // TODO: Not sure about this
     aux_generator: Option<(AssignedPoint<Emulated::Base, N>, Option<Emulated>)>,
-    // TODO: Not sure about this
+    /// Auxiliary points for optimized multiplication for each (window_size, n_pairs) pairs
     aux_registry: BTreeMap<(usize, usize), AssignedPoint<Emulated::Base, N>>,
 }
 
@@ -119,22 +119,23 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         Integer::from_fe(Emulated::b(), Rc::clone(&self.rns_base_field))
     }
 
-    /// TODO What is mul aux?
+    // Reference: https://hackmd.io/ncuKqRXzR-Cw-Au2fGzsMg?view
+    /// Auxilary point for optimized multiplication algorithm
     fn get_mul_aux(
         &self,
         window_size: usize,
-        number_of_pairs: usize, // TODO: what?
+        number_of_pairs: usize,
     ) -> Result<MulAux<Emulated::Base, N>, Error> {
         // Gets chips' aux generator
         let to_add = match self.aux_generator.clone() {
             Some((assigned, _)) => Ok(assigned),
             None => Err(Error::Synthesis),
         }?;
-        // TODO Absolute mistery for now
         let to_sub = match self.aux_registry.get(&(window_size, number_of_pairs)) {
             Some(aux) => Ok(aux.clone()),
             None => Err(Error::Synthesis),
         }?;
+        // TODO is to_add the equivalent of AuxInit and to_sub AuxFin
         Ok(MulAux::new(to_add, to_sub))
     }
 
@@ -159,7 +160,7 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
     }
 
     /// Takes `Point` and assign its coordiantes as constant
-    /// Returns as `AssignedPoint`
+    /// Returned as `AssignedPoint`
     pub fn assign_constant(
         &self,
         ctx: &mut RegionCtx<'_, '_, N>,
@@ -175,6 +176,7 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         Ok(AssignedPoint::new(x, y))
     }
 
+    /// Takes `Point` of the EC and returns it as `AssignedPoint`
     pub fn assign_point(
         &self,
         ctx: &mut RegionCtx<'_, '_, N>,
@@ -196,6 +198,7 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         Ok(point)
     }
 
+    /// Assigns the auxiliary generator point
     pub fn assign_aux_generator(
         &mut self,
         ctx: &mut RegionCtx<'_, '_, N>,
@@ -206,6 +209,7 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         Ok(())
     }
 
+    /// Assigns multiplication auxiliary point for a pair of (window_size, n_pairs)
     pub fn assign_aux(
         &mut self,
         ctx: &mut RegionCtx<'_, '_, N>,
@@ -228,6 +232,7 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         }
     }
 
+    /// Constraints to ensure `AssignedPoint` is on curve
     pub fn assert_is_on_curve(
         &self,
         ctx: &mut RegionCtx<'_, '_, N>,
@@ -243,7 +248,7 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         Ok(())
     }
 
-    /// Assert two `AssignedPoint`s are equal
+    /// Constraints assert two `AssignedPoint`s are equal
     pub fn assert_equal(
         &self,
         ctx: &mut RegionCtx<'_, '_, N>,

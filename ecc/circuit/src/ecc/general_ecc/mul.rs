@@ -80,6 +80,8 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         Ok(reducer[0].clone())
     }
 
+    /// Scalar multiplication of a point in the EC
+    /// Performed with the sliding-window algorithm TODO i think
     pub fn mul(
         &self,
         region: &mut RegionCtx<'_, '_, N>,
@@ -125,15 +127,18 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         let aux = self.get_mul_aux(window_size, pairs.len())?;
 
         let scalar_chip = self.scalar_field_chip();
+        // 1. Decompose scalars in bits
         let mut decomposed_scalars: Vec<Vec<AssignedCondition<N>>> = pairs
             .iter()
             .map(|(_, scalar)| scalar_chip.decompose(region, scalar))
             .collect::<Result<_, Error>>()?;
 
+        // 2. Pad scalars bit representations
         for decomposed in decomposed_scalars.iter_mut() {
             self.pad(region, decomposed, window_size)?;
         }
 
+        // 3. Split scalar bits into windows
         let windowed_scalars: Vec<Windowed<N>> = decomposed_scalars
             .iter()
             .map(|decomposed| Self::window(decomposed.to_vec(), window_size))

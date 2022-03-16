@@ -98,8 +98,8 @@ impl EccConfig {
     }
 }
 
-/// TODO What does this do? Precomputing aux value for scalar mul of point `aux_to_add`?
-/// TODO number_of_pairs?
+/// Aux function for batch multiplication Finds a point we need to subtract from the batch multiplication result
+/// TODO Specify arguments meaning
 fn make_mul_aux<C: CurveAffine>(aux_to_add: C, window_size: usize, number_of_pairs: usize) -> C {
     assert!(window_size > 0);
     assert!(number_of_pairs > 0);
