@@ -21,10 +21,10 @@ pub struct GeneralEccChip<Emulated: CurveAffine, N: FieldExt> {
     /// Chip configuration
     config: EccConfig,
     /// Rns for EC base field
-    rns_base_field: Rc<Rns<Emulated::Base, N>>, // DNC: Why reference-counting?
+    rns_base_field: Rc<Rns<Emulated::Base, N>>,
     /// Rns for EC scalar field
     rns_scalar_field: Rc<Rns<Emulated::Scalar, N>>,
-    // TODO: Not sure about this
+    /// Auxiliary point for optimized multiplication algorithm
     aux_generator: Option<(AssignedPoint<Emulated::Base, N>, Option<Emulated>)>,
     /// Auxiliary points for optimized multiplication for each (window_size, n_pairs) pairs
     aux_registry: BTreeMap<(usize, usize), AssignedPoint<Emulated::Base, N>>,
@@ -32,6 +32,8 @@ pub struct GeneralEccChip<Emulated: CurveAffine, N: FieldExt> {
 
 impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
     /// Residue numeral system
+    /// Used to emulate the base field `Emulated::Base` and the scalar
+    /// field `Emulated::Scalar` over the native field `N`
     pub fn rns(bit_len_limb: usize) -> (Rns<Emulated::Base, N>, Rns<Emulated::Scalar, N>) {
         (Rns::construct(bit_len_limb), Rns::construct(bit_len_limb))
     }
@@ -119,7 +121,6 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         Integer::from_fe(Emulated::b(), Rc::clone(&self.rns_base_field))
     }
 
-    // Reference: https://hackmd.io/ncuKqRXzR-Cw-Au2fGzsMg?view
     /// Auxilary point for optimized multiplication algorithm
     fn get_mul_aux(
         &self,
@@ -135,7 +136,8 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
             Some(aux) => Ok(aux.clone()),
             None => Err(Error::Synthesis),
         }?;
-        // TODO is to_add the equivalent of AuxInit and to_sub AuxFin
+        // to_add the equivalent of AuxInit and to_sub AuxFin
+        // see https://hackmd.io/ncuKqRXzR-Cw-Au2fGzsMg?view
         Ok(MulAux::new(to_add, to_sub))
     }
 
@@ -327,6 +329,7 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         self._double_incomplete(ctx, p)
     }
 
+    /// Given an `AssignedPoint` $P$ computes P * 2^logn
     pub fn double_n(
         &self,
         ctx: &mut RegionCtx<'_, '_, N>,
@@ -340,6 +343,8 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         Ok(acc)
     }
 
+    /// Wrapper for `_ladder_incomplete`
+    /// Given 2 `AssignedPoint` $P$ and $Q$ efficiently computes $2*P + Q$
     pub fn ladder(
         &self,
         ctx: &mut RegionCtx<'_, '_, N>,
@@ -349,6 +354,7 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         self._ladder_incomplete(ctx, to_double, to_add)
     }
 
+    /// Returns the negative or inverse of an `AssignedPoint`
     pub fn neg(
         &self,
         ctx: &mut RegionCtx<'_, '_, N>,

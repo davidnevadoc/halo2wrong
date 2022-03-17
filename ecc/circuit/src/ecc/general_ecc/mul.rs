@@ -9,6 +9,7 @@ use halo2::plonk::Error;
 use integer::maingate::RegionCtx;
 
 impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
+    /// Pads scalar up to the next window_size mul
     fn pad(
         &self,
         region: &mut RegionCtx<'_, '_, N>,
@@ -28,6 +29,7 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         Ok(())
     }
 
+    /// Splits the bit representation of a scalar into windows
     fn window(bits: Vec<AssignedCondition<N>>, window_size: usize) -> Windowed<N> {
         assert_eq!(bits.len() % window_size, 0);
         let number_of_windows = bits.len() / window_size;
@@ -44,6 +46,9 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         )
     }
 
+    /// Constructs table for efficient multiplication algorithm
+    /// The table contains precomputed point values that allow to trade
+    /// additions for selections
     fn make_incremental_table(
         &self,
         region: &mut RegionCtx<'_, '_, N>,
@@ -59,6 +64,7 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         Ok(Table(table))
     }
 
+    /// Selects a point in > 2 sized table using a selector
     fn select_multi(
         &self,
         region: &mut RegionCtx<'_, '_, N>,
@@ -81,7 +87,7 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
     }
 
     /// Scalar multiplication of a point in the EC
-    /// Performed with the sliding-window algorithm TODO i think
+    /// Performed with the sliding-window algorithm
     pub fn mul(
         &self,
         region: &mut RegionCtx<'_, '_, N>,
@@ -113,6 +119,10 @@ impl<Emulated: CurveAffine, N: FieldExt> GeneralEccChip<Emulated, N> {
         self.add(region, &acc, &aux.to_sub)
     }
 
+    /// Computes multi-product
+    ///
+    /// Given a vector of point, scalar pairs [(P_0, e_0), (P_1, e_1), ..., (P_k, e_k)]
+    /// returns : P_0 * e_0 + P_1 * e_1 + ...+ P_k * e_k
     pub fn mul_batch_1d_horizontal(
         &self,
         region: &mut RegionCtx<'_, '_, N>,

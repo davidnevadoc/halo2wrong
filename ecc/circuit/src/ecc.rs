@@ -98,8 +98,11 @@ impl EccConfig {
     }
 }
 
-/// Aux function for batch multiplication Finds a point we need to subtract from the batch multiplication result
-/// TODO Specify arguments meaning
+/// Finds a point we need to subtract from the end result in the efficient batch
+/// multiplication algorithm.
+///
+/// Computes AuxFin from AuxInit for batch multiplication
+/// see https://hackmd.io/ncuKqRXzR-Cw-Au2fGzsMg?view
 fn make_mul_aux<C: CurveAffine>(aux_to_add: C, window_size: usize, number_of_pairs: usize) -> C {
     assert!(window_size > 0);
     assert!(number_of_pairs > 0);
@@ -121,7 +124,9 @@ fn make_mul_aux<C: CurveAffine>(aux_to_add: C, window_size: usize, number_of_pai
     (-aux_to_add * big_to_fe::<C::Scalar>(k)).to_affine()
 }
 
-/// TODO Selector vector -> vector of bits
+/// Vector of `AssignedCondition` which is the binary representation of a scalar.
+///
+/// Allows to select values of precomputed table in efficient multiplication algorithm
 #[derive(Default)]
 struct Selector<F: FieldExt>(Vec<AssignedCondition<F>>);
 
@@ -136,7 +141,8 @@ impl<F: FieldExt> fmt::Debug for Selector<F> {
     }
 }
 
-/// TODO Vector of selectors
+/// Vector of `Selectors` which represent the binary representation of a scalar
+/// split in window sized selectors.
 struct Windowed<F: FieldExt>(Vec<Selector<F>>);
 
 impl<F: FieldExt> fmt::Debug for Windowed<F> {
@@ -152,7 +158,7 @@ impl<F: FieldExt> fmt::Debug for Windowed<F> {
     }
 }
 
-/// TODO Vector of assigned points
+/// Table of precomputed values for efficient multiplication algorithm.
 struct Table<W: WrongExt, N: FieldExt>(Vec<AssignedPoint<W, N>>);
 
 impl<W: FieldExt, N: FieldExt> fmt::Debug for Table<W, N> {
@@ -169,14 +175,18 @@ impl<W: FieldExt, N: FieldExt> fmt::Debug for Table<W, N> {
     }
 }
 
-///TODO Point multiplication aux struct ?
+/// Auxiliary points for efficient multiplication algorithm
+/// See: https://hackmd.io/ncuKqRXzR-Cw-Au2fGzsMg
 pub(super) struct MulAux<W: WrongExt, N: FieldExt> {
     to_add: AssignedPoint<W, N>,
     to_sub: AssignedPoint<W, N>,
 }
 
+/// Constructs `MulAux`
 impl<W: WrongExt, N: FieldExt> MulAux<W, N> {
     pub(super) fn new(to_add: AssignedPoint<W, N>, to_sub: AssignedPoint<W, N>) -> Self {
+        // TODO Should we ensure that these 2 point are coherent:
+        // to_sub = (to_add * (1 << ec_order ) -1)
         MulAux { to_add, to_sub }
     }
 }
