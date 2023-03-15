@@ -1,8 +1,5 @@
 use crate::{
-    halo2::{
-        arithmetic::{CurveAffine, FieldExt},
-        plonk::Error,
-    },
+    halo2::{arithmetic::CurveAffine, plonk::Error},
     hasher::HasherChip,
     maingate::{AssignedValue, RegionCtx},
 };
@@ -11,13 +8,14 @@ use ecc::{
     maingate::{big_to_fe, decompose, fe_to_big},
     AssignedPoint, BaseFieldEccChip,
 };
+use ff::PrimeField;
 use group::ff::PrimeField;
 use poseidon::Spec;
 
 /// `PointRepresentation` will encode point with an implemented strategy
 pub trait PointRepresentation<
     C: CurveAffine<ScalarExt = N>,
-    N: FieldExt,
+    N: PrimeField,
     const NUMBER_OF_LIMBS: usize,
     const BIT_LEN_LIMB: usize,
 >: Default
@@ -38,7 +36,7 @@ pub struct LimbRepresentation;
 
 impl<
         C: CurveAffine<ScalarExt = N>,
-        N: FieldExt,
+        N: PrimeField,
         const NUMBER_OF_LIMBS: usize,
         const BIT_LEN_LIMB: usize,
     > PointRepresentation<C, N, NUMBER_OF_LIMBS, BIT_LEN_LIMB> for LimbRepresentation
@@ -74,7 +72,7 @@ pub struct NativeRepresentation;
 
 impl<
         C: CurveAffine<ScalarExt = N>,
-        N: FieldExt,
+        N: PrimeField,
         const NUMBER_OF_LIMBS: usize,
         const BIT_LEN_LIMB: usize,
     > PointRepresentation<C, N, NUMBER_OF_LIMBS, BIT_LEN_LIMB> for NativeRepresentation
@@ -103,7 +101,7 @@ impl<
 #[derive(Clone, Debug)]
 pub struct TranscriptChip<
     C: CurveAffine<ScalarExt = N>,
-    N: FieldExt,
+    N: PrimeField,
     E: PointRepresentation<C, N, NUMBER_OF_LIMBS, BIT_LEN>,
     const NUMBER_OF_LIMBS: usize,
     const BIT_LEN: usize,
@@ -117,7 +115,7 @@ pub struct TranscriptChip<
 
 impl<
         C: CurveAffine<ScalarExt = N>,
-        N: FieldExt,
+        N: PrimField,
         E: PointRepresentation<C, N, NUMBER_OF_LIMBS, BIT_LEN>,
         const NUMBER_OF_LIMBS: usize,
         const BIT_LEN: usize,
@@ -166,7 +164,6 @@ impl<
 
 #[cfg(test)]
 mod tests {
-    use crate::halo2::arithmetic::FieldExt;
     use crate::halo2::circuit::Layouter;
     use crate::halo2::circuit::SimpleFloorPlanner;
     use crate::halo2::plonk::Error;
@@ -185,6 +182,7 @@ mod tests {
     use ecc::maingate::RangeInstructions;
     use ecc::BaseFieldEccChip;
     use ecc::EccConfig;
+    use ff::PrimeField;
     use group::ff::Field;
     use paste::paste;
     use poseidon::Poseidon;
@@ -224,7 +222,10 @@ mod tests {
             }
         }
 
-        fn config_range<N: FieldExt>(&self, layouter: &mut impl Layouter<N>) -> Result<(), Error> {
+        fn config_range<N: PrimeField>(
+            &self,
+            layouter: &mut impl Layouter<N>,
+        ) -> Result<(), Error> {
             let range_chip = RangeChip::<N>::new(self.range_config.clone());
             range_chip.load_table(layouter)?;
 
