@@ -4,6 +4,6 @@ members = [
   "integer",
   "halo2wrong",
   "ecc",
-  "ecdsa",
-  "transcript"
+  # "ecdsa",
+  # "transcript"
 ]

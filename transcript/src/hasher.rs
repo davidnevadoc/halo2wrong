@@ -1,18 +1,19 @@
 use crate::{
-    halo2::{arithmetic::FieldExt, plonk::Error},
+    halo2::plonk::Error,
     maingate::{AssignedValue, MainGate, MainGateConfig, MainGateInstructions, RegionCtx, Term},
 };
+use ff::Field;
 use poseidon::{SparseMDSMatrix, Spec, State};
 
 /// `AssignedState` is composed of `T` sized assigned values
 #[derive(Debug, Clone)]
-pub struct AssignedState<F: FieldExt, const T: usize>(pub(super) [AssignedValue<F>; T]);
+pub struct AssignedState<F: Field, T: usize>(pub(super) [AssignedValue<F>; T]);
 
 /// `HasherChip` is basically responsible for contraining permutation part of
 /// transcript pipeline
 #[derive(Debug, Clone)]
 pub struct HasherChip<
-    F: FieldExt,
+    F: Field,
     const NUMBER_OF_LIMBS: usize,
     const BIT_LEN: usize,
     const T: usize,
@@ -25,7 +26,7 @@ pub struct HasherChip<
 }
 
 impl<
-        F: FieldExt,
+        F: Field,
         const NUMBER_OF_LIMBS: usize,
         const BIT_LEN: usize,
         const T: usize,
@@ -63,7 +64,7 @@ impl<
 }
 
 impl<
-        F: FieldExt,
+        F: Field,
         const NUMBER_OF_LIMBS: usize,
         const BIT_LEN: usize,
         const T: usize,
@@ -109,7 +110,7 @@ impl<
 }
 
 impl<
-        F: FieldExt,
+        F: Field,
         const NUMBER_OF_LIMBS: usize,
         const BIT_LEN: usize,
         const T: usize,
